@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>📚 AC's Book AttiC 📚</title>
+  
+  <!-- 分頁小豬圖標 -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🐷</text></svg>">
+  
+  <!-- Google Fonts 古典書本裝幀字體 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Noto+Serif+TC:wght@600;700;900&family=Playfair+Display:ital,wght@0,600;0,800;1,600&display=swap" rel="stylesheet">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- 彩帶特效 -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  
+  <style>
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    .font-book-title {
+      font-family: 'Cinzel', 'Playfair Display', 'Noto Serif TC', Georgia, serif;
+    }
+
+    @keyframes slotGlow {
+      0%, 100% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.2); }
+      50% { box-shadow: 0 0 30px rgba(245, 158, 11, 0.6); }
+    }
+    .slot-spinning {
+      animation: slotGlow 0.8s infinite ease-in-out;
+    }
+  </style>
+</head>
+<body class="bg-amber-50/40 text-stone-800 min-h-screen py-8 px-4 sm:px-8 font-sans">
+  <div class="max-w-6xl mx-auto">
+
+    <!-- 頂部置中大標題區 -->
+    <header class="flex flex-col items-center text-center mb-8 gap-3">
+      <div class="w-full flex justify-end">
+        <button id="adminModeToggleBtn" onclick="toggleAdminModePrompt()" class="text-xs px-3 py-1.5 rounded-xl font-medium transition flex items-center gap-1.5 border shadow-sm">
+          <!-- 動態載入 -->
+        </button>
+      </div>
+
+      <h1 class="text-3xl sm:text-4xl md:text-5xl font-black text-amber-950 tracking-widest font-book-title drop-shadow-sm">
+        📚 AC's Book AttiC 📚
+      </h1>
+      <p class="text-stone-500 text-sm max-w-lg mx-auto italic" id="pageSubtitle">
+        記錄每一本藏書與閱讀痕跡，用驚喜決定下一段旅程
+      </p>
+
+      <div class="admin-only flex flex-wrap gap-2 justify-center mt-2">
+        <button onclick="openBatchEditModal()" class="text-xs bg-amber-800 hover:bg-amber-900 text-white font-medium px-3.5 py-2 rounded-xl transition shadow-sm flex items-center gap-1">
+          ✍️ 批次管理 (書名/作者/風格)
+        </button>
+        <button onclick="openGenreModal()" class="text-xs bg-amber-100 hover:bg-amber-200 text-amber-900 font-medium px-3 py-2 rounded-xl transition">
+          🏷️ 風格/題材管理
+        </button>
+        <button onclick="openImportModal()" class="text-xs bg-orange-100 hover:bg-orange-200 text-orange-900 font-medium px-3 py-2 rounded-xl transition">
+          📥 批次匯入
+        </button>
+        <button onclick="exportData()" class="text-xs bg-stone-200 hover:bg-stone-300 text-stone-700 font-medium px-3 py-2 rounded-xl transition">
+          💾 備份書庫
+        </button>
+        <label class="text-xs bg-stone-200 hover:bg-stone-300 text-stone-700 font-medium px-3 py-2 rounded-xl transition cursor-pointer">
+          📂 還原備份
+          <input type="file" accept=".json" onchange="importBackupData(event)" class="hidden">
+        </label>
+      </div>
+    </header>
+
+    <!-- 分頁切換籤 -->
+    <div class="flex justify-center border-b border-stone-200 mb-6 gap-2">
+      <button id="tabBooksBtn" onclick="switchTab('books')" class="px-6 py-2.5 text-sm font-bold border-b-2 border-amber-800 text-amber-900 transition flex items-center gap-2">
+        <span>📚 一般書籍 (Kobo/實體)</span>
+      </button>
+      <button id="tabBomtoonBtn" onclick="handleBomtoonTabClick()" class="px-6 py-2.5 text-sm font-semibold border-b-2 border-transparent text-stone-400 hover:text-stone-700 transition flex items-center gap-2">
+        <span id="bomtoonLockIcon">🔒</span>
+        <span>🎨 Bomtoon 漫畫館</span>
+      </button>
+    </div>
+
+    <!-- 主互動內容容器 -->
+    <div id="mainPageContentWrapper">
+
+      <!-- 看板統計與選書機 -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-stone-100 flex flex-col justify-center text-center sm:text-left">
+          <div class="text-sm font-medium text-stone-500" id="statCardTitle">一般藏書概覽</div>
+          <div class="mt-2 flex items-baseline justify-center sm:justify-start gap-2">
+            <span class="text-3xl font-bold text-amber-800" id="totalCount">0</span>
+            <span class="text-xs text-stone-400" id="totalUnitText">本藏書</span>
+          </div>
+          <div class="mt-2 text-xs text-stone-500 flex flex-wrap justify-center sm:justify-start gap-x-2 gap-y-1" id="statBadgesContainer"></div>
+          <div class="mt-2 pt-2 border-t border-stone-100 text-xs text-stone-400 flex justify-center sm:justify-start gap-2" id="formatSubStats"></div>
+        </div>
+
+        <div class="lg:col-span-2 bg-gradient-to-r from-amber-600 to-orange-500 text-white p-6 rounded-2xl shadow-md flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="text-center sm:text-left">
+            <h2 class="text-xl font-bold" id="lotteryBannerTitle">✨ 今天讀哪一本？</h2>
+            <p class="text-amber-100 text-sm mt-1" id="lotteryBannerSubtitle">點擊自訂抽籤範圍，隨機抽出下一本要讀的書並開啟計時！</p>
+          </div>
+          <button onclick="openLotteryModal()" class="bg-white text-amber-700 hover:bg-amber-100 font-bold px-6 py-3 rounded-xl shadow transition transform active:scale-95 whitespace-nowrap">
+            🎲 啟動命運抽選
+          </button>
+        </div>
+      </div>
+
+      <!-- 手動單筆新增 -->
+      <div class="admin-only bg-white rounded-2xl shadow-sm border border-stone-100 p-6 mb-8">
+        <h3 class="text-base font-bold text-stone-800 mb-3" id="addItemTitle">手動新增書籍</h3>
+        <form id="addItemForm" class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <input type="text" id="itemTitleInput" placeholder="書名 (例如：原子習慣 - 詹姆斯‧克利爾)..." required class="sm:col-span-5 px-4 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+          <select id="itemGenreSelect" required class="sm:col-span-3 px-3 py-2 border rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500"></select>
+          <div id="thirdInputContainer" class="sm:col-span-2">
+            <select id="itemFormatSelect" class="w-full px-3 py-2 border rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="電子書">📱 電子書</option>
+              <option value="實體書">📖 實體書</option>
+            </select>
+          </div>
+          <button type="submit" class="sm:col-span-2 bg-stone-800 hover:bg-stone-700 text-white font-medium py-2 px-4 rounded-xl text-sm transition">
+            + 加入清單
+          </button>
+        </form>
+      </div>
+
+      <!-- 清單主卡片 -->
+      <div class="bg-white rounded-2xl shadow-sm border border-stone-100 p-6">
+        
+        <div class="mb-5">
+          <div class="text-xs font-semibold text-stone-400 mb-2.5 flex items-center gap-1.5">
+            <span>🏷️ 風格單選篩選 (Genre)：</span>
+            <span class="text-[11px] text-stone-400 font-normal">(數字為藏書量)</span>
+          </div>
+          <div id="genrePillsContainer" class="flex flex-wrap gap-2 items-center"></div>
+        </div>
+
+        <div id="bulkActionBar" class="admin-only hidden mb-4 p-3 bg-amber-50/90 border border-amber-200 rounded-2xl flex flex-wrap items-center justify-between gap-3 text-xs shadow-sm transition-all">
+          <div class="flex items-center gap-2 font-bold text-amber-900">
+            <span>⚡ 已選取 <span id="selectedCountText" class="text-amber-700 text-sm font-extrabold">0</span> 本書籍</span>
+            <button onclick="openBatchEditModal(true)" class="bg-amber-800 hover:bg-amber-900 text-white px-2.5 py-1 rounded-lg transition font-medium ml-1">
+              ✍️ 批次編輯所選
+            </button>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-stone-200">
+              <span class="text-stone-400">風格:</span>
+              <select id="bulkGenreSelect" class="bg-transparent focus:outline-none"></select>
+              <button onclick="applyBulkGenre()" class="text-amber-800 hover:font-bold font-medium px-1">套用</button>
+            </div>
+
+            <div class="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-stone-200">
+              <span class="text-stone-400">狀態:</span>
+              <select id="bulkStatusSelect" class="bg-transparent focus:outline-none"></select>
+              <button onclick="applyBulkStatus()" class="text-amber-800 hover:font-bold font-medium px-1">套用</button>
+            </div>
+
+            <div id="bulkFormatContainer" class="flex items-center gap-1 bg-white px-2 py-1 rounded-lg border border-stone-200">
+              <span class="text-stone-400">類型:</span>
+              <select id="bulkFormatSelect" class="bg-transparent focus:outline-none">
+                <option value="電子書">📱 電子書</option>
+                <option value="實體書">📖 實體書</option>
+              </select>
+              <button onclick="applyBulkFormat()" class="text-amber-800 hover:font-bold font-medium px-1">套用</button>
+            </div>
+
+            <button onclick="bulkDeleteSelected()" class="bg-rose-600 hover:bg-rose-700 text-white font-bold px-3 py-1 rounded-lg shadow-sm transition">
+              🗑️ 刪除所選
+            </button>
+            <button onclick="clearSelection()" class="text-stone-400 hover:text-stone-600 px-1 py-1">取消</button>
+          </div>
+        </div>
+
+        <div class="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 mb-4 pb-4 border-b border-stone-100">
+          <div>
+            <h3 class="text-lg font-bold text-stone-800" id="listTitle">我的藏書清單</h3>
+            <p class="text-xs text-stone-400 mt-0.5">點擊書名記錄心得與評分 ｜ 點選核取方塊可批次修改或刪除</p>
+          </div>
+
+          <div class="flex items-center gap-2 overflow-x-auto w-full xl:w-auto pb-1 xl:pb-0">
+            <div class="flex items-center gap-1.5 shrink-0">
+              <span class="text-xs text-stone-400">排序:</span>
+              <select id="sortBy" onchange="renderItems()" class="text-xs sm:text-sm px-2.5 py-1.5 border rounded-lg bg-stone-50 font-medium text-stone-700 focus:outline-none">
+                <option value="default">最新加入</option>
+                <option value="rating-desc">評分最高 (5★ → 1★)</option>
+                <option value="stroke-asc">筆畫 / 字母 (A → Z)</option>
+                <option value="stroke-desc">筆畫 / 字母 (Z → A)</option>
+                <option value="genre">依風格排序</option>
+              </select>
+            </div>
+
+            <select id="filterFormat" onchange="renderItems()" class="text-xs sm:text-sm px-2.5 py-1.5 border rounded-lg bg-stone-50 shrink-0 focus:outline-none">
+              <option value="ALL">全部類型</option>
+              <option value="電子書">📱 電子書</option>
+              <option value="實體書">📖 實體書</option>
+            </select>
+
+            <select id="filterStatus" onchange="renderItems()" class="text-xs sm:text-sm px-2.5 py-1.5 border rounded-lg bg-stone-50 shrink-0 focus:outline-none"></select>
+          </div>
+        </div>
+
+        <!-- 表頭標題列 -->
+        <div class="hidden lg:grid grid-cols-12 gap-3 px-3 py-2.5 text-xs font-bold text-stone-700 bg-stone-100/70 rounded-xl border border-stone-200/60 mb-2 items-center">
+          <div class="col-span-1 flex items-center justify-center gap-1.5 font-bold text-center">
+            <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this.checked)" class="admin-only rounded text-amber-700 cursor-pointer" title="全選本頁">
+            <span>Number</span>
+          </div>
+          <div class="col-span-3 text-left font-bold pl-2">Title & Author</div>
+          <div class="col-span-2 text-center font-bold">Genre</div>
+          <div class="col-span-2 text-center font-bold">Format</div>
+          <div class="col-span-2 text-center font-bold">Status</div>
+          <div class="col-span-1 text-center font-bold">Rating</div>
+          <div class="col-span-1 text-center font-bold">Review</div>
+        </div>
+
+        <div id="itemList" class="divide-y divide-stone-100"></div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- ⏱ 沉浸式閱讀懸浮計時器 -->
+  <div id="readingTimerWidget" class="hidden fixed bottom-6 right-6 z-50 bg-stone-900/95 backdrop-blur text-white p-4 rounded-3xl shadow-2xl border border-amber-500/40 max-w-sm w-full transition-all">
+    <div class="flex items-center justify-between pb-2 border-b border-stone-800">
+      <span class="text-[11px] font-bold text-amber-400 tracking-wider flex items-center gap-1.5">
+        <span id="timerPulseDot" class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+        沉浸閱讀中 · LIVE TIMER
+      </span>
+      <button onclick="minimizeTimerToggle()" class="text-stone-400 hover:text-white text-xs px-1.5 py-0.5 rounded">
+        縮小
+      </button>
+    </div>
+
+    <div id="timerExpandedContent" class="mt-2.5">
+      <div class="font-semibold text-xs text-stone-300 truncate" id="timerBookTitle">《書名》</div>
+      <div class="font-mono text-3xl font-black text-amber-300 text-center tracking-widest py-2" id="timerDisplay">
+        00:00:00
+      </div>
+      <div class="flex items-center justify-center gap-2 pt-1 border-t border-stone-800/80">
+        <button id="timerPauseBtn" onclick="togglePauseTimer()" class="text-xs bg-stone-800 hover:bg-stone-700 text-amber-200 px-3 py-1.5 rounded-xl transition font-medium">
+          ⏸ 暫停
+        </button>
+        <button onclick="stopAndSaveTimer()" class="text-xs bg-amber-600 hover:bg-amber-500 text-white px-4 py-1.5 rounded-xl transition font-bold shadow-md">
+          ⏹ 結束本次閱讀並累積
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📊 概覽分類快速清單彈窗 -->
+  <div id="quickListModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="flex justify-between items-center pb-3 border-b border-stone-100">
+        <h3 class="text-lg font-bold text-stone-800 flex items-center gap-2" id="quickListModalTitle">
+          📋 清單預覽
+        </h3>
+        <button onclick="closeQuickListModal()" class="text-stone-400 hover:text-stone-600 text-lg">✕</button>
+      </div>
+      <div class="flex-1 overflow-y-auto divide-y divide-stone-100 my-3 pr-1" id="quickListModalContent"></div>
+      <div class="flex justify-end pt-2">
+        <button onclick="closeQuickListModal()" class="bg-stone-200 hover:bg-stone-300 text-stone-700 text-xs font-medium px-5 py-2 rounded-xl transition">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🎰 命定抽選彈窗 -->
+  <div id="lotteryModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full text-center shadow-2xl relative max-h-[92vh] flex flex-col">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-xl font-bold text-stone-800" id="lotteryModalTitle">🎰 命定抽選</h3>
+        <button onclick="closeLotteryModal()" class="text-stone-400 hover:text-stone-600 text-lg">✕</button>
+      </div>
+
+      <div class="bg-stone-50 p-3.5 rounded-2xl border border-stone-200 text-left mb-4 text-xs">
+        <div class="flex justify-between items-center mb-2">
+          <span class="font-bold text-stone-700">🎯 抽選條件設定：</span>
+          <span id="lotteryCandidateCount" class="font-semibold text-amber-700">抽池共有 0 部</span>
+        </div>
+
+        <div id="lotteryFormatFilterContainer" class="flex items-center gap-3 mb-2.5 pb-2 border-b border-stone-200">
+          <span class="text-stone-500">載體範圍:</span>
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="radio" name="lotteryFormatRadio" value="ALL" checked onchange="updateLotteryFilters()" class="text-amber-700">
+            <span>全部</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="radio" name="lotteryFormatRadio" value="電子書" onchange="updateLotteryFilters()" class="text-amber-700">
+            <span>📱 電子書</span>
+          </label>
+          <label class="flex items-center gap-1 cursor-pointer">
+            <input type="radio" name="lotteryFormatRadio" value="實體書" onchange="updateLotteryFilters()" class="text-amber-700">
+            <span>📖 實體書</span>
+          </label>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1.5">
+            <span class="text-stone-500">風格排除 (點擊切換 <span class="text-rose-600 font-bold">排除 / 包含</span>):</span>
+            <button onclick="resetLotteryExclusions()" class="text-[11px] text-amber-800 hover:underline">全部恢復</button>
+          </div>
+          <div id="lotteryGenreToggles" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pt-0.5"></div>
+        </div>
+      </div>
+
+      <div id="slotBox" class="my-3 py-8 px-4 bg-gradient-to-b from-amber-50 to-orange-50/60 rounded-3xl border-2 border-dashed border-amber-300 min-h-[140px] flex flex-col items-center justify-center transition-all">
+        <div id="slotBadge" class="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-200/70 text-amber-800 font-semibold mb-2 opacity-0 transition">
+          PICK OF DESTINY
+        </div>
+        <div id="slotMachineText" class="text-xl sm:text-2xl font-black text-amber-950 transition-all transform">
+          準備抽籤...
+        </div>
+        <div id="slotMetaText" class="text-xs text-amber-700 mt-2 font-medium"></div>
+      </div>
+
+      <div id="lotteryResultActions" class="hidden flex flex-wrap justify-center gap-2 mt-3">
+        <button id="lotteryStartReadingBtn" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition transform active:scale-95 text-xs sm:text-sm">
+          📖 開始閱讀並計時！
+        </button>
+        <button id="lotteryMarkOnlyBtn" class="bg-amber-100 hover:bg-amber-200 text-amber-900 font-medium py-2.5 px-4 rounded-xl transition text-xs">
+          僅轉為「閱讀中」
+        </button>
+      </div>
+
+      <div id="lotterySpinControl" class="flex justify-center gap-3 mt-3">
+        <button id="lotteryActionBtn" onclick="startSpin()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition transform active:scale-95">
+          🎲 開始抽籤！
+        </button>
+        <button onclick="closeLotteryModal()" class="bg-stone-200 hover:bg-stone-300 text-stone-700 font-medium py-2.5 px-4 rounded-xl transition">
+          關閉
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✍️ 批次管理與編輯彈窗 -->
+  <div id="batchEditModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-5xl w-full shadow-2xl max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-start mb-2">
+        <div>
+          <h3 class="text-xl font-bold text-stone-800">✍️ 批次管理書籍 (Title / Author / Genre / Format)</h3>
+          <p class="text-xs text-stone-500 mt-1">直接在表格中修改，按 <kbd class="px-1.5 py-0.5 bg-stone-100 border rounded text-[11px] font-mono text-stone-700">Tab</kbd> 鍵可快速跳格！</p>
+        </div>
+        <button onclick="closeBatchEditModal()" class="text-stone-400 hover:text-stone-600 text-xl">✕</button>
+      </div>
+
+      <div class="bg-stone-50 p-3 rounded-2xl border border-stone-200 text-xs my-3 space-y-2.5">
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-stone-200">
+          <div class="flex items-center gap-4">
+            <label class="flex items-center gap-1.5 font-semibold text-stone-700 cursor-pointer">
+              <input type="checkbox" id="batchFilterMissingAuthor" onchange="renderBatchEditTable()" class="rounded text-amber-700">
+              <span>只列出「未填寫作者」</span>
+            </label>
+            <label class="flex items-center gap-1.5 font-semibold text-stone-700 cursor-pointer" id="batchFilterOnlySelectedLabel">
+              <input type="checkbox" id="batchFilterOnlySelected" onchange="renderBatchEditTable()" class="rounded text-amber-700">
+              <span>只編輯主畫面「已勾選」書籍</span>
+            </label>
+          </div>
+          <span class="text-stone-500 font-semibold" id="batchEditSummaryCount">顯示 0 本</span>
+        </div>
+
+        <div class="flex items-start gap-2 pt-0.5">
+          <span class="text-stone-500 shrink-0 mt-1">Genre 過濾 (可多選):</span>
+          <div class="flex-1 flex flex-wrap gap-1.5 items-center" id="batchMultiGenrePills"></div>
+          <button onclick="resetBatchGenreFilters()" class="text-[11px] text-amber-800 hover:underline shrink-0 mt-1">全部重設</button>
+        </div>
+      </div>
+
+      <div class="flex-1 overflow-y-auto border border-stone-200 rounded-xl my-2 divide-y divide-stone-100 bg-white" id="batchEditTableContainer"></div>
+
+      <div class="flex justify-end gap-3 pt-3 border-t border-stone-100 mt-2">
+        <button onclick="closeBatchEditModal()" class="px-4 py-2 text-stone-500 hover:text-stone-700 text-sm">取消</button>
+        <button onclick="saveBatchEditChanges()" class="bg-amber-800 hover:bg-amber-900 text-white font-medium px-6 py-2 rounded-xl text-sm shadow transition">
+          儲存所有變更
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📥 批次匯入彈窗 -->
+  <div id="importModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-4xl w-full shadow-2xl max-h-[90vh] flex flex-col">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="text-xl font-bold text-stone-800" id="importModalTitle">📥 批次匯入書籍</h3>
+        <button onclick="closeImportModal()" class="text-stone-400 hover:text-stone-600 text-lg">✕</button>
+      </div>
+
+      <div id="importStep1" class="flex-1 flex flex-col">
+        <p class="text-xs text-stone-500 mb-3">請貼上書名清單（每行一本書，支援「書名 - 作者」格式）：</p>
+        <textarea id="batchRawTextarea" rows="8" placeholder="致富心態 - 摩根‧豪瑟&#10;原子習慣 - 詹姆斯‧克利爾&#10;蛤蟆先生去看心理師" class="w-full p-3 border rounded-xl font-mono text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 mb-4 flex-1"></textarea>
+        
+        <div class="grid grid-cols-3 gap-3 mb-6 bg-stone-50 p-3 rounded-2xl border text-xs">
+          <div>
+            <label class="block font-semibold text-stone-600 mb-1">預設風格 (Genre)</label>
+            <select id="batchDefaultGenre" class="w-full px-2 py-1.5 border rounded-lg bg-white"></select>
+          </div>
+          <div id="batchDefaultFormatContainer">
+            <label class="block font-semibold text-stone-600 mb-1">預設類型 (Format)</label>
+            <select id="batchDefaultFormat" class="w-full px-2 py-1.5 border rounded-lg bg-white">
+              <option value="電子書">📱 電子書</option>
+              <option value="實體書">📖 實體書</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-stone-600 mb-1">預設狀態 (Status)</label>
+            <select id="batchDefaultStatus" class="w-full px-2 py-1.5 border rounded-lg bg-white"></select>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3">
+          <button onclick="closeImportModal()" class="px-4 py-2 text-stone-500 hover:text-stone-700 text-sm">取消</button>
+          <button onclick="proceedToImportPreview()" class="bg-amber-800 hover:bg-amber-900 text-white font-medium px-5 py-2 rounded-xl text-sm transition shadow">
+            下一步：解析並逐本調整 ➔
+          </button>
+        </div>
+      </div>
+
+      <div id="importStep2" class="hidden flex-1 flex flex-col min-h-0">
+        <div class="flex justify-between items-center mb-2">
+          <p class="text-xs text-stone-500">已解析 <span id="previewCount" class="font-bold text-amber-800">0</span> 本書籍，可在下方逐一調整風格、狀態與作者：</p>
+          <button onclick="backToImportStep1()" class="text-xs text-amber-800 hover:underline">← 回上一步修改清單</button>
+        </div>
+        <div class="flex-1 overflow-y-auto border border-stone-200 rounded-xl my-2 p-2 divide-y divide-stone-100 bg-stone-50/50" id="importPreviewTable"></div>
+        <div class="flex justify-end gap-3 pt-3 border-t border-stone-100 mt-2">
+          <button onclick="closeImportModal()" class="px-4 py-2 text-stone-500 hover:text-stone-700 text-sm">取消</button>
+          <button onclick="finalizeBatchImport()" class="bg-amber-800 hover:bg-amber-900 text-white font-medium px-6 py-2 rounded-xl text-sm transition shadow">
+            確認全部匯入入庫！
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✏️ 單本編輯彈窗 -->
+  <div id="editModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl">
+      <h3 class="text-lg font-bold text-stone-800 mb-4">✏️ 編輯書籍資訊</h3>
+      <input type="hidden" id="editItemId">
+
+      <div class="space-y-4 mb-6">
+        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+          <div class="sm:col-span-7">
+            <label class="text-xs font-semibold text-stone-500 block mb-1">Title</label>
+            <input type="text" id="editPureTitleInput" required class="w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+          <div class="sm:col-span-5">
+            <label class="text-xs font-semibold text-stone-500 block mb-1">Author</label>
+            <input type="text" id="editAuthorInput" placeholder="例如：詹姆斯‧克利爾" class="w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-xs font-semibold text-stone-500 block mb-1">Genre</label>
+            <select id="editGenreSelect" class="w-full px-3 py-2 border rounded-xl text-sm bg-white"></select>
+          </div>
+          <div id="editCustomFieldContainer"></div>
+        </div>
+
+        <div>
+          <label class="text-xs font-semibold text-stone-500 block mb-1">Status</label>
+          <select id="editStatusSelect" class="w-full px-3 py-2 border rounded-xl text-sm bg-white"></select>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <button onclick="closeEditModal()" class="px-4 py-2 text-stone-500 hover:text-stone-700 text-sm">取消</button>
+        <button onclick="saveEditItem()" class="bg-amber-800 hover:bg-amber-900 text-white font-medium px-5 py-2 rounded-xl text-sm transition">儲存變更</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📖 心得與評分詳細彈窗 -->
+  <div id="detailModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-start gap-4 mb-4">
+        <div>
+          <span id="detailBadge" class="text-xs px-2.5 py-1 rounded-md bg-stone-100 text-stone-600 font-medium inline-block mb-1"></span>
+          <h3 class="text-xl font-bold text-stone-800 leading-snug" id="detailBookTitle">書名</h3>
+        </div>
+        <button onclick="closeDetailModal()" class="text-stone-400 hover:text-stone-600 text-xl">✕</button>
+      </div>
+
+      <input type="hidden" id="detailBookId">
+
+      <div class="bg-amber-50/60 p-4 rounded-2xl border border-amber-100 mb-5">
+        <div class="flex justify-between items-center mb-2">
+          <label class="text-xs font-bold text-amber-900">⭐️ 閱讀評分 (支援半星)</label>
+          <span id="ratingScoreText" class="text-sm font-bold text-amber-700">0.0 / 5.0</span>
+        </div>
+        <div id="starIconPreview" class="flex gap-1.5 mb-3 items-center"></div>
+        <input type="range" id="detailRatingSlider" min="0" max="5" step="0.5" value="0" oninput="onRatingSliderChange(this.value)" class="w-full accent-amber-600 cursor-pointer">
+      </div>
+
+      <div class="mb-4">
+        <label class="text-xs font-bold text-stone-600 block mb-1.5">📅 開始閱讀日期 (純日期)</label>
+        <input type="text" id="detailReadingStartDate" placeholder="例如：2026/09/12" class="w-full px-3 py-2 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono">
+      </div>
+
+      <div class="mb-4">
+        <label class="text-xs font-bold text-amber-900 block mb-1.5">⏳ 最後總共花的時間 (手動總結填寫)</label>
+        <input type="text" id="detailFinalTotalTime" placeholder="例如：4 小時 30 分鐘、3 天讀完、約 5 小時..." class="w-full px-3 py-2 border border-amber-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-amber-50/30 font-semibold text-stone-800">
+      </div>
+
+      <div class="mb-4">
+        <div class="flex justify-between items-center mb-1.5">
+          <label class="text-xs font-bold text-stone-600">⏱ 計時歷史紀錄與系統累積總計</label>
+          <button type="button" onclick="startTimerFromDetail()" class="text-xs text-amber-800 hover:text-amber-900 font-semibold flex items-center gap-1 hover:underline">
+            ⏱ 開啟碼表計時
+          </button>
+        </div>
+        <textarea id="detailReadingTime" rows="3" placeholder="每次計時會自動保留統計時間與日期於此處..." class="w-full p-2.5 border rounded-xl text-xs font-mono text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-500 bg-stone-50"></textarea>
+      </div>
+
+      <div class="mb-4">
+        <label class="text-xs font-bold text-stone-600 block mb-1.5">📝 讀後心得 & 金句筆記</label>
+        <textarea id="detailNotes" rows="5" placeholder="寫下這本書的心得、金句筆記..." class="w-full p-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+      </div>
+
+      <div class="flex items-center gap-2 mb-6 p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs">
+        <input type="checkbox" id="detailReviewCompletedCheckbox" class="rounded text-emerald-600 cursor-pointer w-4 h-4">
+        <label for="detailReviewCompletedCheckbox" class="font-medium text-stone-700 cursor-pointer">
+          標記為「心得已撰寫完畢」（打勾後 Review 欄將顯示完成）
+        </label>
+      </div>
+
+      <div class="flex justify-end gap-3">
+        <button onclick="closeDetailModal()" class="px-4 py-2 text-stone-500 hover:text-stone-700 text-sm">取消</button>
+        <button id="saveDetailBtn" onclick="saveDetailData()" class="bg-amber-800 hover:bg-amber-900 text-white font-medium px-6 py-2 rounded-xl text-sm shadow transition">儲存心得與評分</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⚡ 快速風格選擇彈窗 -->
+  <div id="quickGenreModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+      <div class="flex justify-between items-center mb-3">
+        <h4 class="text-base font-bold text-stone-800">⚡ 快速變更風格 (Genre)</h4>
+        <button onclick="closeQuickGenreModal()" class="text-stone-400 hover:text-stone-600 text-sm">✕</button>
+      </div>
+      <p class="text-xs text-stone-500 mb-4" id="quickGenreBookName">點選標籤立即套用：</p>
+      <div id="quickGenreList" class="flex flex-wrap gap-2 max-h-56 overflow-y-auto pr-1 mb-4"></div>
+      <div class="pt-3 border-t border-stone-100 flex gap-2">
+        <input type="text" id="quickNewGenreInput" placeholder="自訂新風格..." class="flex-1 px-3 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-amber-500">
+        <button onclick="createAndApplyQuickGenre()" class="bg-stone-800 hover:bg-stone-700 text-white text-xs px-3 py-1.5 rounded-lg transition">新增並套用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 🏷️ 風格管理彈窗 -->
+  <div id="genreModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-bold text-stone-800" id="genreModalTitle">🏷️ 風格管理 (Genre)</h3>
+        <button onclick="closeGenreModal()" class="text-stone-400 hover:text-stone-600 text-lg">✕</button>
+      </div>
+      <div class="bg-amber-50/70 p-3 rounded-2xl border border-amber-100 mb-5">
+        <label class="text-xs font-bold text-amber-900 block mb-1.5">➕ 新增自訂標籤</label>
+        <div class="flex gap-2">
+          <input type="text" id="newGenreInput" placeholder="輸入新標籤名稱..." class="flex-1 px-3 py-1.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500">
+          <button onclick="addNewGenre()" class="bg-amber-800 hover:bg-amber-900 text-white font-medium px-4 py-1.5 rounded-xl text-sm transition">新增</button>
+        </div>
+      </div>
+      <div id="genreListContainer" class="max-h-64 overflow-y-auto divide-y divide-stone-100 mb-6 pr-1"></div>
+      <div class="flex justify-end">
+        <button onclick="closeGenreModal()" class="bg-stone-200 hover:bg-stone-300 text-stone-700 font-medium px-5 py-2 rounded-xl transition">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ADMIN_PASSCODE = "8888";
+    let isAdmin = localStorage.getItem('ac_library_admin_logged') === 'true';
+
+    function checkAdminState() {
+      const toggleBtn = document.getElementById('adminModeToggleBtn');
+      const adminElements = document.querySelectorAll('.admin-only');
+      const lockIcon = document.getElementById('bomtoonLockIcon');
+      if (isAdmin) {
+        toggleBtn.innerHTML = `<span>🔓 管理員模式 (已解鎖)</span>`;
+        toggleBtn.className = "text-xs px-3 py-1.5 rounded-xl font-medium bg-emerald-50 text-emerald-800 border border-emerald-300";
+        adminElements.forEach(el => el.classList.remove('hidden'));
+        document.getElementById('saveDetailBtn').classList.remove('hidden');
+        lockIcon.innerText = "🔓";
+      } else {
+        toggleBtn.innerHTML = `<span>🔒 訪客檢視模式</span>`;
+        toggleBtn.className = "text-xs px-3 py-1.5 rounded-xl font-medium bg-stone-100 text-stone-600 border border-stone-200";
+        adminElements.forEach(el => el.classList.add('hidden'));
+        lockIcon.innerText = "🔒";
+        if (currentTab === 'bomtoon') switchTab('books');
+      }
+    }
+
+    function handleBomtoonTabClick() { switchTab('bomtoon'); }
+
+    function toggleAdminModePrompt() {
+      if (isAdmin) {
+        if (confirm('是否退出管理員模式？')) {
+          isAdmin = false;
+          localStorage.removeItem('ac_library_admin_logged');
+          checkAdminState();
+          renderItems();
+        }
+      } else {
+        const pass = prompt('請輸入管理員密碼：');
+        if (pass === ADMIN_PASSCODE) {
+          isAdmin = true;
+          localStorage.setItem('ac_library_admin_logged', 'true');
+          alert('管理員權限已解鎖！');
+          checkAdminState();
+          renderItems();
+        } else if (pass !== null) { alert('密碼錯誤！'); }
+      }
+    }
+
+    let currentTab = 'books';
+    let currentActiveGenreFilter = 'ALL';
+    let bookGenres = JSON.parse(localStorage.getItem('my_book_genres')) || ["文學／小說", "漫畫／耽美", "健康／心理", "投資／理財", "歷史／科普", "套書／系列"];
+
+    // 🌟 絕對預設書單 (146本書強制寫死在記憶體中)
+    const absoluteDefaultBooks = [
+      { "id": 1, "title": "【赫胥黎文明預言套書（全新中譯本）】（兩冊）：《美麗新世界》＋《島》 - 阿道斯．赫胥黎", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 2, "title": "入間同學入魔了！本傳(01)~(43)、if Episode of 魔手黨(01)~(05)、外傳─卡爾耶格篇─） - 西修", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 3, "title": "排球少年(01)~(45)END - 古館春一", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 4, "title": "鋼之鍊金術師(1)~(27)END - 荒川弘", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 5, "title": "路人超能100本傳(01)~(16)END、官方設定集、外傳 REIGEN - ONE", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 6, "title": "齊木楠雄的災難(01)~(18) - 麻生周一", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 7, "title": "迷宮飯(01)~(14)END - 九井諒子", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 8, "title": "WITCH WATCH 魔女守護者(01)~(24) - 篠原健太", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 9, "title": "膽大黨(01)~(20) - 龍幸伸", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 10, "title": "不死不運(01)~(27)END - 戸塚慶文", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 11, "title": "哈利波特(1)神秘的魔法石 - J.K. Rowling", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 12, "title": "納尼亞傳奇系列 (The Chronicles of Narnia) - C. S. Lewis", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 13, "title": "週四謀殺俱樂部系列 - Richard Osman", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 14, "title": "意料之外的戀愛系列（含本篇、番外） - PIBI", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 15, "title": "戀愛禁區系列（含本篇、番外 兔子傳） - DANBI", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 16, "title": "是你讓我無法呼吸(01)~(04) - 澄谷 ゼニコ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 17, "title": "未必故意的戀愛史／確定故意的戀愛史系列 - Uzutokkeng", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 18, "title": "我的英雄學院組隊任務(01)~(05) - 秋山陽光", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 19, "title": "黃金神威(01)~(03) - 野田サトル", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 20, "title": "鯛代，你這傢伙。(01)~(04) - ヤマダ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 21, "title": "型男業務同事正是理想飼主 - nocori", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 22, "title": "魔女之犬 - 黒井よだか", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 23, "title": "背叛者的情歌(01)~(03) - 外岡もったす", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 24, "title": "HELLO MORNING STAR - 倉橋トモ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 25, "title": "四週戀人(01)~(02) - 마로론", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 26, "title": "Game Changers Collection - Rachel Reid", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 27, "title": "吻過傷痕系列 - あまきいお", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 28, "title": "眾神之島 - 光風", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 29, "title": "銀木犀的裁縫屋(上)(下) - マミタ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 30, "title": "YOUNG 系列（YOUNG GOOD BOYFRIEND、YOUNG BAD EDUCATION） - ダヨオ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 31, "title": "爸爸是性感集合體 - 池玲文", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 32, "title": "SEX DROP 深陷其中 - しっけ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 33, "title": "神之鱗 - 日ノ原巡", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 34, "title": "我們雖是命運卻無法相容 - 永条エイ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 35, "title": "幽靈社團(上)+(下) - Leigh Bardugo", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 36, "title": "地獄反轉套書 - Leigh Bardugo", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 37, "title": "柯南．道爾經典推理小說套書（福爾摩斯冒險史、福爾摩斯歸來記） - 柯南・道爾", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 38, "title": "心流：高手都在研究的最優體驗心理學 - 米哈里‧契克森米哈伊", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 39, "title": "停止你的內在戰爭：聆聽心中真正的渴望，走向不再糾結的人生 - 黃仕明", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 40, "title": "翦商：殷周之變與華夏新生 - 李碩", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 41, "title": "詭畫連篇 - 傑森・雷庫拉克（Jason Rekulak）", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 42, "title": "如何與朋友分手？清爽到不可思議的友情整理術 - Erin Falconer", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 43, "title": "壞人的調教方法 - ダヨオ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 44, "title": "翠海的雀絲 - Brandon Sanderson", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 45, "title": "The Secret Lives of Country Gentlemen - KJ Charles", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 46, "title": "飾言Rhetoric - 山田ノノノ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 47, "title": "強風吹拂 - 三浦紫苑", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 48, "title": "脆弱的假自尊 - 全美暻", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 49, "title": "Ink Blood Sister Scribe - Emma Törzs", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 50, "title": "Babel - R. F. Kuang", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 51, "title": "最璀璨的銀河 - 劉慈欣", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 52, "title": "夜晚的潛水艇 - 陳春成", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 53, "title": "A Little Life - Hanya Yangihara", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 54, "title": "候鳥的女兒 - 夏洛特‧麥康納吉", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 55, "title": "被動投資學 - 理查‧菲利", "genre": "投資／理財", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 56, "title": "保養常識9成都是騙人的：終極×最強肌膚保養法 - 落合博子", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 57, "title": "先鋒榮譽董事長談投資：精煉40年投資智慧，關於儲蓄、複利和人生的致富金律 - 傑克‧布倫南", "genre": "投資／理財", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 58, "title": "給我當乖孩子的獎勵 - 黒井よだか", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 59, "title": "魔女與貓 - 神田貓", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 60, "title": "青鳥 - 莫里斯‧梅特林克", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 61, "title": "逢緣感情淨化 - 大島かもめ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 62, "title": "戀染龍雨衣 - 朔ヒロ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 63, "title": "完美求婚 - 鶴亀まよ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 64, "title": "即便如此，我還是想和你談戀愛！ - 黒田くろた", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 65, "title": "調教叛逆/王者 - キタハラリイ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 66, "title": "讓我們一起在那裡墮落一下吧 - 七生えむ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 67, "title": "一見鍾情的人是個抖M - 山田ノノノ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 68, "title": "跪舔求愛 - 山田ノノノ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 69, "title": "舞臺下的單向愛戀 - 大島かもめ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 70, "title": "天馬與榊 - Arinco", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 71, "title": "無論黑夜、或是白天 - 世", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 72, "title": "為花換新水 - 瓦萊莉‧貝涵", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 73, "title": "想被開發/要綻放的理科男子 - マミタ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 74, "title": "勤儉魔法師的中古英格蘭生存指南 - Brandon Sanderson", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 75, "title": "無垠祕典 - Brandon Sanderson", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 76, "title": "巫師霍爾三部曲 - 黛安娜‧韋恩‧瓊斯", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 77, "title": "The Hobbit - J.R.R. Tolkein", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 78, "title": "獅子的舞者 - 柳瀬せの", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 79, "title": "愛的藝術 - 埃里希．佛洛姆", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 80, "title": "人類大歷史 - 哈拉瑞", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 81, "title": "你的人生，他們六個說了算！：決定你一生的六種物質 - 大衛．JP．菲利浦斯", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 82, "title": "零號病人：塑造現代醫學史的真正英雄 - 呂克．培悉諾", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 83, "title": "血色童話 - 約翰．傑維德．倫德維斯特", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 84, "title": "第十三個故事 - 戴安‧賽特菲爾德", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 85, "title": "命運的伴侶怎麼會是你 - 春田", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 86, "title": "黑瀨，我們私下談談。 - カキネ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 87, "title": "當面相凶惡的鄰居是Ω時的應對法 - ニクヤ乾", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 88, "title": "喊停後的關係中止期 - Hiカロリー", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 89, "title": "afterglow 落日餘暉 - 吾瀬わぎもこ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 90, "title": "垃圾屋中被遺棄的你 - 緒花", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 91, "title": "夠好的工作：你的工作不代表你，挑戰「夢想工作」的迷思，找回不以工作為中心的生活方式 - 西蒙‧史托佐夫", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 92, "title": "星期五的年下男友 - 神田貓", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 93, "title": "黑道Ω的伴侶 - 黒井よだか", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 94, "title": "一如既往：不變的人性法則與致富心態 - Morgan Housel", "genre": "投資／理財", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 95, "title": "The Nightingale - Kristin Hannah", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 96, "title": "13．67 - 陳浩基", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 97, "title": "林中祕族 - 柳原漢雅", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 98, "title": "厄蘇利納 - 布萊恩‧弗利曼", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 99, "title": "人類存在的意義：一個生物學家對生命的思索 - Edward O Wilson", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 100, "title": "人類時代：我們所塑造的世界 - 黛安．艾克曼", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 101, "title": "昨年 - 卡羅．克萊兒．柏克", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 102, "title": "天防者 - Brandon Sanderson", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 103, "title": "花錢的藝術：打造富足人生的金錢心理學 - Morgan Housel", "genre": "投資／理財", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 104, "title": "種族滅絕 - 高野和明", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 105, "title": "高效原力：用愉悅心態激發生產力，做更多重要的事 - 阿里．阿布達爾", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 106, "title": "婚禮之徒 - Alison Espach", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 107, "title": "寫作，是最好的自我投資 - 陳立飛（Spenser）", "genre": "投資／理財", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 108, "title": "深刻認識一個人：發現自己與他人的非凡之處 - David Brooks", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 109, "title": "隨他們去 - Mel Robbins", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 110, "title": "早餐店阿姨什麼都記得住：早安，今天的鬼故事加點洋蔥嗎？ - 路邊攤", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 111, "title": "正念殺機 - 卡斯登‧杜瑟", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 112, "title": "你不知道的搜救與犯罪現場：密閉空間救援與懸案鑑識調查紀實 - Peter Faulding", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 113, "title": "你就是困住自己的那座山：終結自我破壞，實現自我控制 - 布莉安娜‧魏斯特", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 114, "title": "即使只是微弱的光芒 - 崔恩榮", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 115, "title": "早安，我心中的怪物：一個心理師與五顆破碎心靈的相互啟蒙，看他們從情感失能到學會感受、走出童年創傷的重生之路 - 凱瑟琳‧吉爾迪娜", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 116, "title": "神也鬥不過愚蠢 - Issac Asimov", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 117, "title": "語言如何誕生和進化？ - 今井睦美", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 118, "title": "Katabasis - R. F. Kuang", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 119, "title": "黎明之時最為黑暗 - 山田ノノノ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 120, "title": "遺忘本能：大腦內建生存機制，可以解開記憶桎梏，解放負面情緒，重啟認知與創造力 - 史考特．史摩", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 121, "title": "就算殿後也照睡不誤：直木賞作家三浦紫苑的奇蹟日常 - 三浦紫苑", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 122, "title": "納瓦爾寶典：從白手起家到財務自由，矽谷傳奇創投家的投資哲學與人生智慧 - 艾瑞克‧喬根森", "genre": "投資／理財", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 123, "title": "North Woods - Daniel Mason", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 124, "title": "真的假的！奇怪知識又增加了：自說自話的總裁顛覆認知的科學奇想 - 自說自話的總裁", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 125, "title": "老後行為說明書：解讀父母最需要你了解的16種行為，讓相處和照顧更順利 - 平松類", "genre": "健康／心理", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 126, "title": "櫻井要改走陽光路線 - 水曜日", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 127, "title": "山羊與大野狼的發情事件 - 朱鷺紫羽", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 128, "title": "七殺簡史 - 馬龍‧詹姆斯", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 129, "title": "超級感官：人類的32種感覺和運用技巧 - 艾瑪．楊恩", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 130, "title": "The Lord of the Rings Illustrated - J.R.R. Tolkein", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 131, "title": "The Complete Poppy War Trilogy - R. F. Kuang", "genre": "文學／小說", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 132, "title": "40歲以前想達成的10件事 - マミタ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 133, "title": "什麼！英國女王是蜥蜴人？！：陰謀論、偽歷史與偽科學為什麼吸引我們，透過人性的希望與恐懼，影響我們的決定和行動 - 羅納德．弗里茨", "genre": "歷史／科普", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 134, "title": "迷霧之子終部曲：永世英雄 - Brandon Sanderson", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 135, "title": "迷霧之子二部曲：昇華之井 - Brandon Sanderson", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 136, "title": "高規格魔王與年近三十勇者 - アサナエアラタ", "genre": "漫畫／耽美", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 137, "title": "週四謀殺俱樂部(3)擦身而過的子彈 - Richard Osman", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 138, "title": "週四謀殺俱樂部(2)死了兩次的男人 - Richard Osman", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 139, "title": "週四謀殺俱樂部(4)魔鬼的最後一眼 - Richard Osman", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 140, "title": "哈利波特(2)消失的密室 - J.K. Rowling", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 141, "title": "哈利波特(3)阿茲卡班的逃犯 - J.K. Rowling", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 142, "title": "哈利波特(4)火盃的考驗 - J.K. Rowling", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 143, "title": "哈利波特(5)鳳凰會的密令 - J.K. Rowling", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 144, "title": "哈利波特(6)混血王子的背叛 - J.K. Rowling", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 145, "title": "哈利波特(7)死神的聖物 - J.K. Rowling", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 },
+      { "id": 146, "title": "Game Changers Volume 2 - Racheil Reid", "genre": "套書／系列", "format": "電子書", "status": "未讀", "rating": 0 }
+    ];
+
+    let bomtoonGenres = JSON.parse(localStorage.getItem('my_bomtoon_genres')) || ["BL", "現代職場", "歐風宮廷", "奇幻異能", "校園青春", "懸疑劇情"];
+    let bomtoonComics = JSON.parse(localStorage.getItem('my_bomtoon_library')) || [{ id: 101, title: "夜畫帳", genre: "BL", episode: "第 102 話", status: "追更中" }];
+
+    // 🌟 強制將 146 本書寫入並作為運作基準
+    let books = absoluteDefaultBooks;
+
+    function switchTab(tab) {
+      currentTab = tab;
+      currentActiveGenreFilter = 'ALL';
+      const bBtn = document.getElementById('tabBooksBtn');
+      const mBtn = document.getElementById('tabBomtoonBtn');
+      if (tab === 'books') {
+        bBtn.className = "px-6 py-2.5 text-sm font-bold border-b-2 border-amber-800 text-amber-950";
+        mBtn.className = "px-6 py-2.5 text-sm font-semibold border-b-2 border-transparent text-stone-400";
+        document.getElementById('listTitle').innerText = "我的藏書清單";
+      } else {
+        mBtn.className = "px-6 py-2.5 text-sm font-bold border-b-2 border-rose-600 text-rose-700";
+        bBtn.className = "px-6 py-2.5 text-sm font-semibold border-b-2 border-transparent text-stone-400";
+        document.getElementById('listTitle').innerText = "Bomtoon 追漫清單";
+      }
+      refreshUI();
+    }
+
+    function refreshUI() {
+      checkAdminState();
+      renderItems();
+    }
+
+    function renderItems() {
+      const items = currentTab === 'books' ? books : bomtoonComics;
+      const listEl = document.getElementById('itemList');
+      document.getElementById('totalCount').innerText = items.length;
+
+      let filtered = items.filter(item => currentActiveGenreFilter === 'ALL' || item.genre === currentActiveGenreFilter);
+
+      listEl.innerHTML = '';
+      filtered.forEach((item, index) => {
+        const row = document.createElement('div');
+        row.className = "py-3 grid grid-cols-12 gap-3 items-center hover:bg-stone-50 px-2 rounded-xl text-xs";
+        row.innerHTML = `
+          <div class="col-span-1 text-center font-mono text-stone-400">#${index + 1}</div>
+          <div class="col-span-6 font-semibold text-stone-800 text-sm truncate">${item.title}</div>
+          <div class="col-span-2 text-center"><span class="px-2 py-0.5 bg-stone-100 rounded">${item.genre}</span></div>
+          <div class="col-span-3 text-center"><span class="px-2 py-0.5 bg-amber-50 text-amber-800 rounded font-medium">${item.status}</span></div>
+        `;
+        listEl.appendChild(row);
+      });
+    }
+
+    function exportData() {
+      const fullBackup = { version: "18.2", books, bookGenres, bomtoonComics, bomtoonGenres };
+      const blob = new Blob([JSON.stringify(fullBackup, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `AC_BookAttic_backup.json`;
+      a.click();
+    }
+
+    refreshUI();
+  </script>
+</body>
+</html>
